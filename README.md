@@ -1,6 +1,6 @@
-# ATIN_CENTOS-X
+# ATIN_CENTOS-1.0
 
-**ATIN_CENTOS-X** est un assistant interactif pour les administrateurs système et réseau sous CentOS/RHEL.  
+**ATIN_CENTOS-1.0** est un assistant interactif pour les administrateurs système et réseau sous CentOS/RHEL.  
 Il automatise et simplifie les principales tâches d’exploitation, d’audit, de sécurité et de maintenance sur vos serveurs Linux.
 
 ---
@@ -46,8 +46,8 @@ Il automatise et simplifie les principales tâches d’exploitation, d’audit, 
 
 1. **Cloner le dépôt** :
    ```bash
-   git clone https://github.com/NABEDE/ATIN_CENTOS-X.git
-   cd ATIN_CENTOS-X/app/centos
+   git clone https://github.com/NABEDE/ATIN_CENTOS-1.0.git
+   cd ATIN_CENTOS-1.0/app/centos
    ```
 
 2. **Rendre le script principal exécutable** :
@@ -109,7 +109,7 @@ Il automatise et simplifie les principales tâches d’exploitation, d’audit, 
 ## Structure du projet
 
 ```
-ATIN_CENTOS-X/
+ATIN_CENTOS-1.0/
 │
 ├── app/centos/
 │   ├── install.sh           # Script principal (menu interactif)
@@ -133,9 +133,9 @@ Merci de créer une issue ou une pull request pour toute suggestion, bug ou amé
 ## Contact
 
 Auteur : Jérôme N.  
-Ingénieur Système Réseau & DevOps  
+Ingénieur Système Réseau & Microservices Linux/Docker  
 [Profil GitHub](https://github.com/NABEDE)
 
 ---
 
-**ATIN_CENTOS-X — Facilitez l’admin de vos serveurs CentOS/RHEL !**
+**ATIN_CENTOS-1.0 — Facilitez l’admin de vos serveurs CentOS/RHEL !**
