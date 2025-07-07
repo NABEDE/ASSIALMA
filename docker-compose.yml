@@ -1,0 +1,10 @@
+services:
+  atin_alma_test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: atin_alma_test
+    tty: true
+    stdin_open: true
+    volumes:
+      - ./ATIN_CENTOS-1.0:/home/atin/ATIN_CENTOS-1.0

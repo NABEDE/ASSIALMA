@@ -13,7 +13,7 @@ Il automatise et simplifie les principales tâches d’exploitation, d’audit, 
 - [Utilisation](#utilisation)
 - [Aperçu du Menu](#aperçu-du-menu)
 - [Structure du projet](#structure-du-projet)
-- [Contribuer](#contribuer)
+- [Contribuer et/ou tester](#contribuer)
 - [Contact](#contact)
 
 ---
@@ -123,10 +123,20 @@ ATIN_CENTOS-1.0/
 
 ---
 
-## Contribuer
+## Contribuer et/ou tester
 
 Les contributions sont les bienvenues !  
 Merci de créer une issue ou une pull request pour toute suggestion, bug ou amélioration.
+
+Utilisation de Docker pour tester
+
+```
+   bash
+   # Faire un build
+   docker-compose up --build -d
+
+   # Lancer le container créé
+   docker-compose exec atin_alma_test bash
 
 ---
 
