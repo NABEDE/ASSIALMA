@@ -1,5 +1,5 @@
 services:
-  atin_alma_test:
+  assialma:
     build:
       context: .
       dockerfile: Dockerfile

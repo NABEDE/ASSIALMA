@@ -5,24 +5,18 @@ RUN dnf -y update && \
     dnf install -y sudo firewalld bash && \
     dnf clean all
 
-# Définir le répertoire de travail
-WORKDIR /home/app/almalinux \
-        /home/components
+# Définir le répertoire de travail principal
+WORKDIR /home/app/almalinux
 
-
-# Copier les fichiers dans le containeur
+# Copier les fichiers dans le conteneur
 COPY app/almalinux/ /home/app/almalinux/
 COPY components/ /home/components/
 
-# Entrer dans la partie components
-RUN cd /home/app/almalinux
+# Donner les droits d'exécution au script d'installation
+RUN chmod +x /home/app/almalinux/install.sh
 
-# Changer les accès du fichier install
-RUN chmod +x install.sh
-
-
-# Par défaut, entrer dans bash
+# Définir bash comme point d'entrée
 ENTRYPOINT ["/bin/bash"]
 
-# Optionnel : lancer le script automatiquement
-CMD ["./install.sh"]
+# Lancer le script automatiquement si on ne passe pas de commande
+CMD ["-c", "./install.sh"]

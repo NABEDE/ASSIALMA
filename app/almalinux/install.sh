@@ -1,44 +1,68 @@
 #!/bin/bash
 # =================================================================================================
 # ASSIALMA
-# Un assistant pour les administrateur système et réseau sur Almalinux/RHEL.
-# Auteur : Jérôme N. | Développeur Microservices Linux & Docker | Ingénieur Système Réseau
+# Assistant pour l'administration système sur AlmaLinux / RHEL
+# Auteur : Jérôme N. | DevOps Linux & Docker | Ingénieur Système Réseau
 # Date : 20 Juin 2025
 # =================================================================================================
 
-# -- Chargement des composants nécessaires --
+# -- Détection du chemin absolu du dossier courant --
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$SCRIPT_DIR/../.."
+ROOT_DIR="$SCRIPT_DIR/components"
 
-# Sourcing des composants
-source "$ROOT_DIR/components/variables.sh"
-source "$ROOT_DIR/components/logo.sh"
-source "$ROOT_DIR/components/functions.sh"
+# -- Fonction safe_source pour sourcer les fichiers critiques --
+safe_source() {
+    local file="$1"
+    if [[ -f "$file" ]]; then
+        source "$file"
+    else
+        echo "❌ Fichier requis introuvable : $file"
+        exit 1
+    fi
+}
 
-# -- Affichage du logo --
+# -- Chargement sécurisé des composants --
+safe_source "$ROOT_DIR/variables.sh"
+safe_source "$ROOT_DIR/logo.sh"
+safe_source "$ROOT_DIR/functions.sh"
+
+# -- Affichage du logo et vérifications --
 logo
-
-# -- Vérifications préalables --
 check_root
 verification_os
 
-# -- Boucle principale du menu --
+# -- Boucle principale --
 while true; do
     user_interaction
-    echo ""
-    read -rp "👉 Entrez le numéro de l'action à effectuer (ou '21' pour quitter): " number_for_assistance
 
-    # Gestion des options d'aide
-    if [[ "$number_for_assistance" =~ ^(--help|-h|help)$ ]]; then
+    read -rp "👉 Entrez le numéro de l'action à effectuer (ou '25' pour quitter, '--help' pour l'aide) : " input
+
+    # Aide
+    if [[ "$input" =~ ^(--help|-h|help)$ ]]; then
         show_help
         continue
     fi
 
-    # Appel du switch général (défini dans functions.sh)
-    switch_function
-    echo ""
+    # Quitter
+    if [[ "$input" == "25" ]]; then
+        echo -e "${GREEN}👋 Merci d'avoir utilisé ASSIALMA. À bientôt !${NC}"
+        break
+    fi
+
+    # Vérification de l'entrée
+    if [[ ! "$input" =~ ^[0-9]{1,2}$ || "$input" -lt 1 || "$input" -gt 25 ]]; then
+        echo -e "${RED}❌ Entrée invalide. Veuillez entrer un numéro entre 1 et 25.${NC}"
+        continue
+    fi
+
+    # Appel dynamique
+    switch_function "$input"
+
     read -rp "🔄 Voulez-vous effectuer une autre opération ? (o/n): " encore
-    [[ "$encore" =~ ^([Nn][Oo]?)$ ]] && { echo -e "${GREEN}A bientôt sur Almalinux !${NC}"; break; }
+    if [[ "$encore" =~ ^([nN]|[nN][oO]?)$ ]]; then
+        echo -e "${GREEN}👋 Fin de session. Merci d’avoir utilisé ASSIALMA.${NC}"
+        break
+    fi
 done
 
 exit 0

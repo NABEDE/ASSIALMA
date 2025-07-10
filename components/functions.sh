@@ -238,7 +238,164 @@ show_help() {
 
 switch_function() {
     case $number_for_assistance in
-        # ... (toutes tes cases précédentes inchangées)
+        1*)
+            info_msg "🔄 Mise à jour des paquets..."
+            dnf update -y && success_msg "✅ Système mis à jour avec succès."
+        ;;
+        2*)
+            info_msg "🧹 Nettoyage du cache et suppression des paquets orphelins..."
+            dnf clean all && dnf autoremove -y
+            success_msg "✅ Nettoyage terminé."
+        ;;
+        3*)
+            info_msg "💽 Utilisation disque actuelle :"
+            df -hT | tee -a "$LOG_FILE"
+        ;;
+        4*)
+            read -rp "Répertoire à analyser (ex: /var) : " folder
+            du -ah "$folder" 2>/dev/null | sort -rh | head -n 15 | tee -a "$LOG_FILE"
+        ;;
+        5*)
+            info_msg "🧼 Nettoyage des fichiers temporaires et logs anciens..."
+            rm -rf /tmp/* /var/tmp/*
+            journalctl --vacuum-time=7d
+            success_msg "✅ Fichiers temporaires et journaux nettoyés."
+        ;;
+        6*)
+            read -rp "Nom du service à gérer : " service
+            echo "1) Démarrer  2) Arrêter  3) Redémarrer  4) État"
+            read -rp "Choix : " action
+            case $action in
+                1) systemctl start "$service" ;;
+                2) systemctl stop "$service" ;;
+                3) systemctl restart "$service" ;;
+                4) systemctl status "$service" ;;
+                *) warn_msg "Action inconnue." ;;
+            esac
+        ;;
+        7*)
+            systemctl list-unit-files --type=service | grep enabled
+            read -rp "Nom du service à activer/désactiver : " service
+            echo "1) Activer au démarrage  2) Désactiver"
+            read -rp "Choix : " boot_action
+            case $boot_action in
+                1) systemctl enable "$service" ;;
+                2) systemctl disable "$service" ;;
+                *) warn_msg "Action inconnue." ;;
+            esac
+        ;;
+        8*)
+            read -rp "Port ou service à ajouter/supprimer (ex: http ou 8080/tcp) : " rule
+            echo "1) Ajouter  2) Supprimer"
+            read -rp "Choix : " fw_action
+            case $fw_action in
+                1) firewall-cmd --permanent --add-port="$rule" && reload_firewalld ;;
+                2) firewall-cmd --permanent --remove-port="$rule" && reload_firewalld ;;
+                *) warn_msg "Action inconnue." ;;
+            esac
+        ;;
+        9*)
+            firewall-cmd --get-active-zones
+            read -rp "Nom de la zone (ex: public) : " zone
+            echo "1) Activer  2) Désactiver"
+            read -rp "Choix : " zone_action
+            case $zone_action in
+                1) firewall-cmd --zone="$zone" --set-target=ACCEPT ;;
+                2) firewall-cmd --zone="$zone" --set-target=DROP ;;
+                *) warn_msg "Action inconnue." ;;
+            esac
+            reload_firewalld
+        ;;
+        10*)
+            reload_firewalld
+            success_msg "✅ Configuration du pare-feu rechargée."
+        ;;
+        11*)
+            echo "1) Serveur Web (Apache)  2) Serveur SQL (MariaDB)  3) PHP"
+            read -rp "Choix : " install_choice
+            case $install_choice in
+                1) dnf install -y httpd && systemctl enable --now httpd ;;
+                2) dnf install -y mariadb-server && systemctl enable --now mariadb ;;
+                3) dnf install -y php php-cli php-mysqlnd ;;
+                *) warn_msg "Choix non reconnu." ;;
+            esac
+            success_msg "✅ Installation terminée."
+        ;;
+        12*)
+            echo "Ajout de dépôts EPEL et Remi..."
+            dnf install -y epel-release && dnf install -y https://rpms.remirepo.net/enterprise/remi-release-9.rpm
+            success_msg "✅ Dépôts tiers ajoutés."
+        ;;
+        13*)
+            info_msg "🌐 État des interfaces réseau :"
+            nmcli device status | tee -a "$LOG_FILE"
+        ;;
+        14*)
+            nmcli con show
+            read -rp "Nom de la connexion à modifier : " conn
+            echo "1) DHCP  2) IP statique"
+            read -rp "Choix : " net_action
+            case $net_action in
+                1)
+                    nmcli con mod "$conn" ipv4.method auto
+                    nmcli con up "$conn"
+                    ;;
+                2)
+                    read -rp "Nouvelle IP (ex: 192.168.1.10/24) : " ip
+                    read -rp "Passerelle : " gw
+                    read -rp "DNS (séparés par ,) : " dns
+                    nmcli con mod "$conn" ipv4.addresses "$ip"
+                    nmcli con mod "$conn" ipv4.gateway "$gw"
+                    nmcli con mod "$conn" ipv4.dns "$dns"
+                    nmcli con mod "$conn" ipv4.method manual
+                    nmcli con up "$conn"
+                    ;;
+                *) warn_msg "Choix invalide." ;;
+            esac
+        ;;
+        15*)
+            journalctl -p err -n 30 | tee -a "$LOG_FILE"
+        ;;
+        16*)
+            echo "1) Archiver  2) Supprimer logs anciens (> 30j)"
+            read -rp "Choix : " log_action
+            case $log_action in
+                1)
+                    tar czf /var/log/archive_logs_$(date +%F).tar.gz /var/log/*
+                    success_msg "Logs archivés dans /var/log/archive_logs_DATE.tar.gz"
+                    ;;
+                2)
+                    find /var/log -type f -mtime +30 -exec rm -f {} \;
+                    success_msg "Logs de plus de 30 jours supprimés."
+                    ;;
+                *) warn_msg "Action inconnue." ;;
+            esac
+        ;;
+        17*)
+            swapon --show
+            free -h | grep Swap
+        ;;
+        18*)
+            read -rp "Taille du swap à créer (ex: 2G) : " size
+            fallocate -l "$size" /swapfile
+            chmod 600 /swapfile
+            mkswap /swapfile
+            swapon /swapfile
+            echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
+            success_msg "✅ Swap de $size créé et activé."
+        ;;
+        19*)
+            monitoring_report
+        ;;
+        20*)
+            read -rp "Souhaitez-vous (1) stocker ou (2) envoyer par mail ? " opt
+            generate_full_report
+            report_path=$(ls -t /tmp/atin_system_report_*.txt | head -n 1)
+            if [ "$opt" == "2" ]; then
+                read -rp "Adresse e-mail du destinataire : " email
+                send_mail "Rapport système $(date)" "$(cat "$report_path")" "$email"
+            fi
+        ;;
         21*)
             echo "👤 Gestion des utilisateurs"
             echo "1) Ajouter"
@@ -284,5 +441,6 @@ switch_function() {
         ;;
     esac
 }
+
 
 # ---------- FIN DU FICHIER ----------
