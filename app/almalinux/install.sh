@@ -1,7 +1,7 @@
 #!/bin/bash
 # =================================================================================================
-# ATIN_CENTOS-1.0
-# Un assistant pour les administrateur système et réseau sur CentOS/RHEL.
+# ASSIALMA
+# Un assistant pour les administrateur système et réseau sur Almalinux/RHEL.
 # Auteur : Jérôme N. | Développeur Microservices Linux & Docker | Ingénieur Système Réseau
 # Date : 20 Juin 2025
 # =================================================================================================
@@ -38,7 +38,7 @@ while true; do
     switch_function
     echo ""
     read -rp "🔄 Voulez-vous effectuer une autre opération ? (o/n): " encore
-    [[ "$encore" =~ ^([Nn][Oo]?)$ ]] && { echo -e "${GREEN}A bientôt sur ATIN_CENTOS !${NC}"; break; }
+    [[ "$encore" =~ ^([Nn][Oo]?)$ ]] && { echo -e "${GREEN}A bientôt sur Almalinux !${NC}"; break; }
 done
 
 exit 0

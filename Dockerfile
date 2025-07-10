@@ -6,16 +6,19 @@ RUN dnf -y update && \
     dnf clean all
 
 # Définir le répertoire de travail
-WORKDIR /home/app/ATIN_CENTOS-1.0/app/centos \
-        /home/app/ATIN_CENTOS-1.0/components
+WORKDIR /home/app/almalinux \
+        /home/components
 
 
 # Copier les fichiers dans le containeur
-COPY components/ /home/app/ATIN_CENTOS-1.0/components/
+COPY app/almalinux/ /home/app/almalinux/
+COPY components/ /home/components/
 
+# Entrer dans la partie components
+RUN cd /home/app/almalinux
 
-# Correction des droits et rendre les scripts exécutables
-RUN find /home/app/ATIN_CENTOS-1.0/app -type f -name "*.sh" -exec chmod +x {} \;
+# Changer les accès du fichier install
+RUN chmod +x install.sh
 
 
 # Par défaut, entrer dans bash

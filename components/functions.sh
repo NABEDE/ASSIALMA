@@ -39,11 +39,11 @@ check_root() {
 verification_os() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
-        if [[ "$ID" == "centos" || "$ID_LIKE" == *"rhel"* ]]; then
+        if [[ "$ID" == "almalinux" || "$ID_LIKE" == *"rhel"* ]]; then
             version=$(grep "^VERSION_ID=" /etc/os-release | cut -d '"' -f2)
-            success_msg "Système détecté : CentOS (version $version)"
+            success_msg "Système détecté : Almalinux (version $version)"
         else
-            error_exit "Ce script est conçu uniquement pour CentOS ou dérivés RHEL. Système détecté : $ID"
+            error_exit "Ce script est conçu uniquement pour Almalinux ou dérivés RHEL. Système détecté : $ID"
         fi
     else
         error_exit "/etc/os-release introuvable. Impossible de détecter l'OS."
@@ -190,10 +190,10 @@ generate_full_report() {
 # ---------- Menu utilisateur enrichi ----------
 
 user_interaction() {
-    echo -e "${RED}=========== ATIN_CENTOS-1.0 ================${NC}"
+    echo -e "${RED}=========== ASSIALMA ================${NC}"
     logo
     echo " ===================================================="
-    echo "1. Mettre à jour tous les paquets installés sur votre Système Centos"
+    echo "1. Mettre à jour tous les paquets installés sur votre Système Almlalinux"
     echo "2. Nettoyer le cache des paquets et supprimer les paquets orphelins"
     echo "3. Vérifier l'utilisation de l'espace disque"
     echo "4. Identifier les fichiers ou répertoires les plus volumineux"
@@ -223,10 +223,10 @@ user_interaction() {
 # ---------- Fonctions supplémentaires ----------
 
 show_help() {
-    echo -e "${BLUE}Naviguez vers le dossier apps : cd app/centos${NC}"
+    echo -e "${BLUE}Naviguez vers le dossier apps : cd app/almalinux${NC}"
     echo -e "${BLUE}Rendre exécutable le fichier install : chmod +x install.sh${NC}"
     echo -e "${BLUE}Utilisation: sudo ./install.sh${NC}"
-    echo -e "${BLUE}Ce script va vous aider dans l'administration Système Centos.${NC}"
+    echo -e "${BLUE}Ce script va vous aider dans l'administration Système Almalinux.${NC}"
     echo -e "${BLUE}Options disponibles:${NC}"
     echo -e "${GREEN}--help${NC}    Affiche ce message d'aide."
     echo -e "${GREEN}--no-confirm${NC}  Exécute le script sans demander de confirmation."
@@ -276,7 +276,7 @@ switch_function() {
             generate_full_report
         ;;
         25*)
-            info_msg "👋 Merci d'avoir utilisé ATIN_CENTOS. À bientôt !"
+            info_msg "👋 Merci d'avoir utilisé Almalinux. À bientôt !"
             exit 0
         ;;
         *)

@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: atin_alma_test
+    container_name: assialma
     tty: true
     stdin_open: true
     volumes:
-      - ./ATIN_CENTOS-1.0:/home/atin/ATIN_CENTOS-1.0
+      - ./ASSIALMA:/home/atin/ASSIALMA
