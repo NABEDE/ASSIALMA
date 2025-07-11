@@ -1,22 +1,29 @@
 FROM almalinux:latest
 
-# Mise à jour du système et installation des outils nécessaires
-RUN dnf -y update && \
-    dnf install -y sudo firewalld bash && \
-    dnf clean all
+# Mise à jour et installation des outils de base
+RUN dnf -y update
+RUN dnf install -y nano iputils
 
-# Définir le répertoire de travail principal
-WORKDIR /home/app/almalinux
+# Créer l'arborescence des dossiers
+RUN mkdir -p /app/almalinux
+RUN mkdir -p /app/components
 
-# Copier les fichiers dans le conteneur
-COPY app/almalinux/ /home/app/almalinux/
-COPY components/ /home/components/
+# Copier les fichiers dans les bons répertoires
+COPY app/almalinux/install.sh /app/almalinux/
+COPY components/functions.sh /components/
+COPY components/logo.sh /components/
+COPY components/variables.sh /components/
 
-# Donner les droits d'exécution au script d'installation
-RUN chmod +x /home/app/almalinux/install.sh
+# Définir le dossier de travail
+WORKDIR /app/almalinux
 
-# Définir bash comme point d'entrée
-ENTRYPOINT ["/bin/bash"]
+# Donner les droits d'exécution
+RUN chmod +x install.sh
 
-# Lancer le script automatiquement si on ne passe pas de commande
-CMD ["-c", "./install.sh"]
+# Exécuter install.sh à l’exécution du conteneur (optionnel)
+#CMD ["./install.sh"]
+# ou simplement un shell :
+#CMD ["/bin/bash"]
+
+CMD ["bash", "-c", "cd /app/almalinux && exec /bin/bash"]
+
