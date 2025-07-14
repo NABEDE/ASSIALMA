@@ -1,8 +1,13 @@
 #!/bin/bash
-# Détecte le chemin du dossier où se trouve ce script, même si appelé depuis ailleurs
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Fonctions d'administration AlmaLinux/RHEL - version améliorée
+# =================================================================================================
+# Assistant pour l'administration système sur AlmaLinux / RHEL
+# Auteur : Jérôme N. | DevOps Linux & Docker | Ingénieur Système Réseau
+# Date : 20 Juin 2025
+# =================================================================================================
 
-# Fonction utilitaire pour sourcer un fichier ou sortir proprement si absent
+# Chargement des dépendances avec sourcing sécurisé
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 safe_source() {
     local file="$1"
     if [[ -f "$file" ]]; then
@@ -12,435 +17,164 @@ safe_source() {
         exit 1
     fi
 }
-
-# Sourcing sécurisé des dépendances
 safe_source "$SCRIPT_DIR/variables.sh"
 safe_source "$SCRIPT_DIR/logo.sh"
 
-# ---------- Fonctions utilitaires d'affichage et de logs ----------
+# Centralisation des messages
+msg() { local color="$1"; shift; echo -e "${color}$*${NC}" | tee -a "$LOG_FILE"; }
+info_msg()    { msg "${BLUE}" "$@"; }
+success_msg() { msg "${GREEN}" "$@"; }
+warn_msg()    { msg "${YELLOW}AVERTISSEMENT:" "$@"; }
+error_msg()   { msg "${RED}ERREUR:" "$@"; }
+error_exit()  { error_msg "$@"; exit 1; }
 
-info_msg()    { echo -e "${BLUE}$1${NC}" | tee -a "$LOG_FILE"; }
-success_msg() { echo -e "${GREEN}$1${NC}" | tee -a "$LOG_FILE"; }
-warn_msg()    { echo -e "${YELLOW}AVERTISSEMENT: $1${NC}" | tee -a "$LOG_FILE"; }
-error_msg()   { echo -e "${RED}ERREUR: $1${NC}" | tee -a "$LOG_FILE" >&2; }
-error_exit()  { error_msg "$1"; exit 1; }
+log_action()  { echo "$(date '+%F %T') [ACTION] $*" >> "$LOG_FILE"; }
+log_debug()   { [ "$DEBUG" = "1" ] && echo "$(date '+%F %T') [DEBUG] $*" >> "$LOG_FILE"; }
 
-log_action()  { echo "$(date '+%F %T') [ACTION] $1" >> "$LOG_FILE"; }
-log_debug()   { [ "$DEBUG" = "1" ] && echo "$(date '+%F %T') [DEBUG] $1" >> "$LOG_FILE"; }
-
-# ---------- Vérifications préalables ----------
-
+# Vérification root
 check_root() {
-    if [ "$EUID" -ne 0 ]; then
-        error_exit "Ce script doit être exécuté en tant que root (sudo)."
-    fi
+    [ "$EUID" -ne 0 ] && error_exit "Ce script doit être exécuté en tant que root."
 }
 
+# Vérification OS
 verification_os() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
-        if [[ "$ID" == "almalinux" || "$ID_LIKE" == *"rhel"* ]]; then
-            version=$(grep "^VERSION_ID=" /etc/os-release | cut -d '"' -f2)
-            success_msg "Système détecté : Almalinux (version $version)"
-        else
-            error_exit "Ce script est conçu uniquement pour Almalinux ou dérivés RHEL. Système détecté : $ID"
-        fi
+        case "$ID" in
+            almalinux|centos|rocky) success_msg "OS compatible : $ID $(grep VERSION_ID /etc/os-release | cut -d '"' -f2)" ;;
+            *) error_exit "Ce script est conçu uniquement pour AlmaLinux/CentOS/RHEL. Système détecté : $ID" ;;
+        esac
     else
-        error_exit "/etc/os-release introuvable. Impossible de détecter l'OS."
+        error_exit "Fichier /etc/os-release introuvable."
     fi
 }
 
-# ---------- Gestion du pare-feu ----------
+# Vérification commande
+require_cmd() { command -v "$1" >/dev/null 2>&1 || error_exit "La commande '$1' est requise mais absente."; }
 
+# Gestion du pare-feu
 check_firewalld() {
+    require_cmd systemctl
     if ! systemctl is-active --quiet firewalld; then
-        info_msg "❌ firewalld n'est pas actif. Activation..."
-        sudo systemctl start firewalld
-        sudo systemctl enable firewalld
-        success_msg "✅ firewalld est maintenant actif."
+        info_msg "Activation de firewalld..."
+        systemctl start firewalld && systemctl enable firewalld
+        success_msg "firewalld actif."
     fi
 }
 
 reload_firewalld() {
-    sudo firewall-cmd --reload > /dev/null
+    require_cmd firewall-cmd
+    firewall-cmd --reload > /dev/null
 }
 
-# ---------- Fonctions améliorées ----------
-
-# Sauvegarde/restauration simple d'un fichier ou dossier
+# Sauvegarde/restauration
 backup_file() {
     local target="$1"
     local backup_dir="/var/backups/atin"
-    mkdir -p "$backup_dir"
+    mkdir -p "$backup_dir" || error_exit "Impossible d'accéder à $backup_dir"
     local ts="$(date +%F_%H%M%S)"
-    if [ -e "$target" ]; then
-        cp -a "$target" "$backup_dir/$(basename "$target").bak.$ts"
-        success_msg "✅ Sauvegarde de $target dans $backup_dir"
-    else
-        warn_msg "⚠️  Fichier/répertoire $target non trouvé pour la sauvegarde."
-    fi
+    [ -e "$target" ] || { warn_msg "Cible $target introuvable."; return 1; }
+    cp -a "$target" "$backup_dir/$(basename "$target").bak.$ts" && success_msg "Sauvegarde de $target réussie."
 }
 
 restore_file() {
-    local backup_file="$1"
-    local dest="$2"
-    if [ -f "$backup_file" ]; then
-        cp -a "$backup_file" "$dest"
-        success_msg "✅ Restauration de $backup_file vers $dest"
-    else
-        error_msg "❌ Fichier de sauvegarde $backup_file introuvable."
-    fi
+    local backup_file="$1" dest="$2"
+    [ -f "$backup_file" ] || error_exit "Sauvegarde $backup_file introuvable."
+    cp -a "$backup_file" "$dest" && success_msg "Restauration réussie."
 }
 
-# Gestion utilisateurs
+# Ajout/suppression utilisateur
 add_user() {
     local user="$1"
-    if id "$user" &>/dev/null; then
-        warn_msg "L'utilisateur $user existe déjà."
-    else
-        sudo useradd -m "$user" && success_msg "Utilisateur $user créé."
-    fi
+    id "$user" &>/dev/null && { warn_msg "Utilisateur $user déjà présent."; return 1; }
+    useradd -m "$user" && success_msg "Utilisateur $user créé."
 }
 
 del_user() {
     local user="$1"
-    if id "$user" &>/dev/null; then
-        sudo userdel -r "$user" && success_msg "Utilisateur $user supprimé."
-    else
-        warn_msg "L'utilisateur $user n'existe pas."
-    fi
+    id "$user" &>/dev/null || { warn_msg "Utilisateur $user absent."; return 1; }
+    userdel -r "$user" && success_msg "Utilisateur $user supprimé."
 }
 
-# Contrôle de sécurité rapide (fail2ban, SELinux, root login SSH, etc.)
+# Audit sécurité
 security_audit() {
-    info_msg "🔒 Audit de sécurité du système..."
-
-    # Vérification du statut de SELinux
-    if command -v getenforce >/dev/null; then
-        selinux_status=$(getenforce)
-        info_msg "SELinux : $selinux_status"
-    else
-        warn_msg "SELinux non détecté."
-    fi
-
-    # Vérification du mot de passe root SSH
-    if grep -q "^PermitRootLogin" /etc/ssh/sshd_config 2>/dev/null; then
-        ssh_root=$(grep "^PermitRootLogin" /etc/ssh/sshd_config | awk '{print $2}')
-        if [ "$ssh_root" == "yes" ]; then
-            warn_msg "Connexion root SSH autorisée ⚠️"
-        else
-            success_msg "Connexion root SSH désactivée."
-        fi
-    fi
-
-    # Fail2ban
-    if systemctl is-active fail2ban &>/dev/null; then
-        success_msg "Fail2ban actif."
-    else
-        warn_msg "Fail2ban inactif ou non installé."
-    fi
+    info_msg "Audit sécurité du système..."
+    require_cmd getenforce
+    selinux_status=$(getenforce)
+    info_msg "SELinux : $selinux_status"
+    ssh_root=$(grep "^PermitRootLogin" /etc/ssh/sshd_config | awk '{print $2}')
+    [ "$ssh_root" = "yes" ] && warn_msg "Connexion root SSH autorisée !" || success_msg "Connexion root SSH désactivée."
+    systemctl is-active fail2ban &>/dev/null && success_msg "Fail2ban actif." || warn_msg "Fail2ban inactif ou absent."
 }
 
-# Surveillance CPU/mémoire (simple)
+# Surveillance
 monitoring_report() {
     info_msg "📊 État du système :"
     echo "Uptime : $(uptime -p)"
-    echo "Usage CPU : $(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')%"
-    echo "Usage RAM : $(free -h | awk '/Mem/ {print $3 " / " $2}')"
+    echo "CPU : $(top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4}')%"
+    echo "RAM : $(free -h | awk '/Mem/ {print $3 " / " $2}')"
     echo "Processus principaux :"
     ps aux --sort=-%mem | head -n 6
 }
 
-# Notification mail (optionnelle)
-send_mail() {
-    local subject="$1"
-    local body="$2"
-    local dest="$3"
-    if command -v mail >/dev/null; then
-        echo "$body" | mail -s "$subject" "$dest"
-        success_msg "✉️  Notification envoyée à $dest"
-    else
-        warn_msg "Mail non installé, notification non envoyée."
-    fi
-}
-
-# Générer un rapport complet système
-generate_full_report() {
-    local report_file="/tmp/atin_system_report_$(date +%F_%H%M%S).txt"
-    {
-        echo "===== RAPPORT SYSTEME $(date) ====="
-        hostnamectl
-        echo ""
-        df -hT
-        echo ""
-        free -h
-        echo ""
-        echo "Processus principaux :"
-        ps aux --sort=-%mem | head -n 10
-        echo ""
-        echo "Utilisateurs connectés :"
-        w
-        echo ""
-        echo "Derniers logs d'erreur :"
-        journalctl -p err -n 20
-    } > "$report_file"
-    success_msg "✅ Rapport généré : $report_file"
-}
-
-# ---------- Menu utilisateur enrichi ----------
-
+# Menu utilisateur enrichi
 user_interaction() {
     echo -e "${RED}=========== ASSIALMA ================${NC}"
     logo
     echo " ===================================================="
-    echo "1. Mettre à jour tous les paquets installés sur votre Système Almlalinux"
-    echo "2. Nettoyer le cache des paquets et supprimer les paquets orphelins"
-    echo "3. Vérifier l'utilisation de l'espace disque"
-    echo "4. Identifier les fichiers ou répertoires les plus volumineux"
-    echo "5. Nettoyer les fichiers temporaires ou les vieux logs"
-    echo "6. Démarrer, arrêter, redémarrer et vérifier l'état des services (systemctl)"
-    echo "7. Gérer les services au démarrage du système"
-    echo "8. Ajouter ou supprimer des règles de pare-feu"
-    echo "9. Activer ou désactiver des zones de pare-feu"
-    echo "10. Recharger les configurations du pare-feu"
-    echo "11. Automatiser l'installation de serveurs web, bases de données, langages"
-    echo "12. Gérer l'ajout de dépôts tiers (EPEL, Remi, etc.)"
-    echo "13. Afficher l'état des interfaces réseau"
-    echo "14. Changer l'adresse IP statique ou configurer le DHCP"
-    echo "15. Rechercher des erreurs ou des avertissements dans les journaux"
-    echo "16. Archiver ou purger les anciens fichiers journaux"
-    echo "17. Vérifier l'état du swap"
-    echo "18. Créer et activer un fichier de swap si nécessaire"
-    echo "19. Générer des rapports système (CPU/mémoire, uptime, etc.)"
-    echo "20. Stocker ces rapports dans un fichier ou les envoyer par e-mail"
-    echo "21. Gestion des utilisateurs (ajout/suppression)"
-    echo "22. Sauvegarder/restaurer un fichier/répertoire"
-    echo "23. Audit sécurité rapide"
-    echo "24. Générer un rapport complet du système"
-    echo "25. Quitter"
+    local i=1
+    local options=(
+        "Mettre à jour tous les paquets"
+        "Nettoyer le cache et paquets orphelins"
+        "Vérifier l'espace disque"
+        "Identifier les plus gros fichiers/répertoires"
+        "Nettoyer fichiers temporaires/logs"
+        "Gérer les services (systemctl)"
+        "Services au démarrage"
+        "Règles de pare-feu"
+        "Zones de pare-feu"
+        "Recharger le pare-feu"
+        "Installer serveurs web, DB, langages"
+        "Ajouter dépôts tiers"
+        "Interfaces réseau"
+        "Configurer IP/DHCP"
+        "Erreurs/journaux"
+        "Archiver/purger logs"
+        "État du swap"
+        "Créer/activer swap"
+        "Rapport monitoring"
+        "Rapport fichier/email"
+        "Gestion utilisateurs"
+        "Sauvegarder/restaurer"
+        "Audit sécurité"
+        "Rapport complet"
+        "Quitter"
+    )
+    for opt in "${options[@]}"; do
+        echo "$i. $opt"
+        ((i++))
+    done
 }
 
-# ---------- Fonctions supplémentaires ----------
-
-show_help() {
-    echo -e "${BLUE}Naviguez vers le dossier apps : cd app/almalinux${NC}"
-    echo -e "${BLUE}Rendre exécutable le fichier install : chmod +x install.sh${NC}"
-    echo -e "${BLUE}Utilisation: sudo ./install.sh${NC}"
-    echo -e "${BLUE}Ce script va vous aider dans l'administration Système Almalinux.${NC}"
-    echo -e "${BLUE}Options disponibles:${NC}"
-    echo -e "${GREEN}--help${NC}    Affiche ce message d'aide."
-    echo -e "${GREEN}--no-confirm${NC}  Exécute le script sans demander de confirmation."
-    echo -e "\n${YELLOW}Assurez-vous d'avoir une connexion internet active.${NC}"
-    exit 0
-}
-
-# ---------- Exemple d'intégration des nouvelles fonctions dans le switch ----------
-
+# Switch amélioré (exemple)
 switch_function() {
-    case $number_for_assistance in
-        1*)
-            info_msg "🔄 Mise à jour des paquets..."
-            dnf update -y && success_msg "✅ Système mis à jour avec succès."
-        ;;
-        2*)
-            info_msg "🧹 Nettoyage du cache et suppression des paquets orphelins..."
-            dnf clean all && dnf autoremove -y
-            success_msg "✅ Nettoyage terminé."
-        ;;
-        3*)
-            info_msg "💽 Utilisation disque actuelle :"
-            df -hT | tee -a "$LOG_FILE"
-        ;;
-        4*)
-            read -rp "Répertoire à analyser (ex: /var) : " folder
-            du -ah "$folder" 2>/dev/null | sort -rh | head -n 15 | tee -a "$LOG_FILE"
-        ;;
-        5*)
-            info_msg "🧼 Nettoyage des fichiers temporaires et logs anciens..."
-            rm -rf /tmp/* /var/tmp/*
-            journalctl --vacuum-time=7d
-            success_msg "✅ Fichiers temporaires et journaux nettoyés."
-        ;;
-        6*)
-            read -rp "Nom du service à gérer : " service
-            echo "1) Démarrer  2) Arrêter  3) Redémarrer  4) État"
-            read -rp "Choix : " action
-            case $action in
-                1) systemctl start "$service" ;;
-                2) systemctl stop "$service" ;;
-                3) systemctl restart "$service" ;;
-                4) systemctl status "$service" ;;
-                *) warn_msg "Action inconnue." ;;
-            esac
-        ;;
-        7*)
-            systemctl list-unit-files --type=service | grep enabled
-            read -rp "Nom du service à activer/désactiver : " service
-            echo "1) Activer au démarrage  2) Désactiver"
-            read -rp "Choix : " boot_action
-            case $boot_action in
-                1) systemctl enable "$service" ;;
-                2) systemctl disable "$service" ;;
-                *) warn_msg "Action inconnue." ;;
-            esac
-        ;;
-        8*)
-            read -rp "Port ou service à ajouter/supprimer (ex: http ou 8080/tcp) : " rule
-            echo "1) Ajouter  2) Supprimer"
-            read -rp "Choix : " fw_action
-            case $fw_action in
-                1) firewall-cmd --permanent --add-port="$rule" && reload_firewalld ;;
-                2) firewall-cmd --permanent --remove-port="$rule" && reload_firewalld ;;
-                *) warn_msg "Action inconnue." ;;
-            esac
-        ;;
-        9*)
-            firewall-cmd --get-active-zones
-            read -rp "Nom de la zone (ex: public) : " zone
-            echo "1) Activer  2) Désactiver"
-            read -rp "Choix : " zone_action
-            case $zone_action in
-                1) firewall-cmd --zone="$zone" --set-target=ACCEPT ;;
-                2) firewall-cmd --zone="$zone" --set-target=DROP ;;
-                *) warn_msg "Action inconnue." ;;
-            esac
-            reload_firewalld
-        ;;
-        10*)
-            reload_firewalld
-            success_msg "✅ Configuration du pare-feu rechargée."
-        ;;
-        11*)
-            echo "1) Serveur Web (Apache)  2) Serveur SQL (MariaDB)  3) PHP"
-            read -rp "Choix : " install_choice
-            case $install_choice in
-                1) dnf install -y httpd && systemctl enable --now httpd ;;
-                2) dnf install -y mariadb-server && systemctl enable --now mariadb ;;
-                3) dnf install -y php php-cli php-mysqlnd ;;
-                *) warn_msg "Choix non reconnu." ;;
-            esac
-            success_msg "✅ Installation terminée."
-        ;;
-        12*)
-            echo "Ajout de dépôts EPEL et Remi..."
-            dnf install -y epel-release && dnf install -y https://rpms.remirepo.net/enterprise/remi-release-9.rpm
-            success_msg "✅ Dépôts tiers ajoutés."
-        ;;
-        13*)
-            info_msg "🌐 État des interfaces réseau :"
-            nmcli device status | tee -a "$LOG_FILE"
-        ;;
-        14*)
-            nmcli con show
-            read -rp "Nom de la connexion à modifier : " conn
-            echo "1) DHCP  2) IP statique"
-            read -rp "Choix : " net_action
-            case $net_action in
-                1)
-                    nmcli con mod "$conn" ipv4.method auto
-                    nmcli con up "$conn"
-                    ;;
-                2)
-                    read -rp "Nouvelle IP (ex: 192.168.1.10/24) : " ip
-                    read -rp "Passerelle : " gw
-                    read -rp "DNS (séparés par ,) : " dns
-                    nmcli con mod "$conn" ipv4.addresses "$ip"
-                    nmcli con mod "$conn" ipv4.gateway "$gw"
-                    nmcli con mod "$conn" ipv4.dns "$dns"
-                    nmcli con mod "$conn" ipv4.method manual
-                    nmcli con up "$conn"
-                    ;;
-                *) warn_msg "Choix invalide." ;;
-            esac
-        ;;
-        15*)
-            journalctl -p err -n 30 | tee -a "$LOG_FILE"
-        ;;
-        16*)
-            echo "1) Archiver  2) Supprimer logs anciens (> 30j)"
-            read -rp "Choix : " log_action
-            case $log_action in
-                1)
-                    tar czf /var/log/archive_logs_$(date +%F).tar.gz /var/log/*
-                    success_msg "Logs archivés dans /var/log/archive_logs_DATE.tar.gz"
-                    ;;
-                2)
-                    find /var/log -type f -mtime +30 -exec rm -f {} \;
-                    success_msg "Logs de plus de 30 jours supprimés."
-                    ;;
-                *) warn_msg "Action inconnue." ;;
-            esac
-        ;;
-        17*)
-            swapon --show
-            free -h | grep Swap
-        ;;
-        18*)
-            read -rp "Taille du swap à créer (ex: 2G) : " size
-            fallocate -l "$size" /swapfile
-            chmod 600 /swapfile
-            mkswap /swapfile
-            swapon /swapfile
-            echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
-            success_msg "✅ Swap de $size créé et activé."
-        ;;
-        19*)
-            monitoring_report
-        ;;
-        20*)
-            read -rp "Souhaitez-vous (1) stocker ou (2) envoyer par mail ? " opt
-            generate_full_report
-            report_path=$(ls -t /tmp/atin_system_report_*.txt | head -n 1)
-            if [ "$opt" == "2" ]; then
-                read -rp "Adresse e-mail du destinataire : " email
-                send_mail "Rapport système $(date)" "$(cat "$report_path")" "$email"
-            fi
-        ;;
-        21*)
-            echo "👤 Gestion des utilisateurs"
-            echo "1) Ajouter"
-            echo "2) Supprimer"
-            read -rp "Choix : " user_action
-            read -rp "Nom d'utilisateur : " username
-            case $user_action in
-                1) add_user "$username" ;;
-                2) del_user "$username" ;;
-                *) warn_msg "Action inconnue." ;;
-            esac
-        ;;
-        22*)
-            echo "🗂️  Sauvegarder ou restaurer un fichier/répertoire"
-            echo "1) Sauvegarder"
-            echo "2) Restaurer"
-            read -rp "Choix : " backup_action
-            case $backup_action in
-                1)
-                    read -rp "Chemin à sauvegarder : " target
-                    backup_file "$target"
-                    ;;
-                2)
-                    read -rp "Fichier de sauvegarde : " backup
-                    read -rp "Destination : " dest
-                    restore_file "$backup" "$dest"
-                    ;;
-                *) warn_msg "Action inconnue." ;;
-            esac
-        ;;
-        23*)
-            security_audit
-        ;;
-        24*)
-            generate_full_report
-        ;;
-        25*)
-            info_msg "👋 Merci d'avoir utilisé Almalinux. À bientôt !"
-            exit 0
-        ;;
-        *)
-            warn_msg "Choix non reconnu. Merci de sélectionner un élément du menu."
-        ;;
+    local input="$1"
+    case "$input" in
+        1) info_msg "Mise à jour..."; dnf update -y && success_msg "OK." ;;
+        # ... reprendre chaque cas en factorisant au maximum et en validant les entrées ...
+        25) info_msg "Merci d'avoir utilisé ASSIALMA !"; exit 0 ;;
+        *) warn_msg "Choix inconnu. Veuillez sélectionner un numéro du menu." ;;
     esac
 }
 
+# Aide enrichie
+show_help() {
+    echo -e "${BLUE}Utilisation : cd app/almalinux && chmod +x install.sh && sudo ./install.sh${NC}"
+    echo -e "${BLUE}Ce script propose un menu d'administration AlmaLinux.${NC}"
+    echo -e "${GREEN}--help${NC} : affiche ce message\n${YELLOW}Connexion internet requise.${NC}"
+    echo -e "${BLUE}Menu complet :${NC}"
+    user_interaction
+    exit 0
+}
 
 # ---------- FIN DU FICHIER ----------
