@@ -138,7 +138,7 @@ Merci d’ouvrir une issue ou une pull request pour toute suggestion, bug ou am�
 docker-compose up --build -d
 
 # Lancer le conteneur créé
-docker-compose exec assialma_test bash
+docker-compose exec assialma bash
 ```
 
 ---
