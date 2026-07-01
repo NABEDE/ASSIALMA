@@ -146,7 +146,7 @@ docker-compose exec assialma bash
 ## 📬 Contact
 
 Auteur : Jérôme N.  
-Ingénieur Système & Réseau Linux, Microservices & Docker  
+Ingénieur des Systèmes Réseaux & Télécoms | Étudiant Chercheur - Scientifique 
 [Profil GitHub](https://github.com/NABEDE)
 
 ---
